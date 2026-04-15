@@ -1868,7 +1868,7 @@
                 const forecast = ensembleForecast(prices, state.forecastHorizon);
 
                 const volRegime = forecast.garch.regime;
-                const returnPct = (forecast.predictedReturn * 100).toFixed(2);
+                const returnPct = (forecast.predictedReturn * 100).toFixed(3);
                 const horizonText = state.forecastHorizon <= 5 ? '1 week' : state.forecastHorizon <= 22 ? '1 month' : state.forecastHorizon <= 66 ? '3 months' : '1 year';
 
                 let action = lang === 'en' ? 'overweighting' : 'menambah bobot';
@@ -2005,19 +2005,19 @@
             if (!result) return;
 
             // Update summary bar
-            document.getElementById('summary-return').textContent = `${(result.return * 100).toFixed(1)}%`;
-            document.getElementById('summary-vol').textContent = `${(result.volatility * 100).toFixed(1)}%`;
+            document.getElementById('summary-return').textContent = `${(result.return * 100).toFixed(3)}%`;
+            document.getElementById('summary-vol').textContent = `${(result.volatility * 100).toFixed(3)}%`;
             document.getElementById('summary-sharpe').textContent = result.sharpe.toFixed(2);
 
             // Update metrics grid
-            document.getElementById('opt-return').textContent = `${(result.return * 100).toFixed(1)}%`;
-            document.getElementById('opt-vol').textContent = `${(result.volatility * 100).toFixed(1)}%`;
+            document.getElementById('opt-return').textContent = `${(result.return * 100).toFixed(3)}%`;
+            document.getElementById('opt-vol').textContent = `${(result.volatility * 100).toFixed(3)}%`;
             document.getElementById('opt-sharpe').textContent = result.sharpe.toFixed(2);
             document.getElementById('opt-sortino').textContent = result.sortino.toFixed(2);
-            document.getElementById('opt-dd').textContent = `${(result.maxDD * 100).toFixed(1)}%`;
+            document.getElementById('opt-dd').textContent = `${(result.maxDD * 100).toFixed(3)}%`;
             document.getElementById('opt-calmar').textContent = result.calmar.toFixed(2);
-            document.getElementById('opt-var').textContent = `${(result.var95 * 100).toFixed(1)}%`;
-            document.getElementById('opt-cvar').textContent = `${(result.cvar95 * 100).toFixed(1)}%`;
+            document.getElementById('opt-var').textContent = `${(result.var95 * 100).toFixed(3)}%`;
+            document.getElementById('opt-cvar').textContent = `${(result.cvar95 * 100).toFixed(3)}%`;
 
             // Update weights display
             const weightsContainer = document.getElementById('weightsContainer');
@@ -2034,7 +2034,7 @@
                     <div class="weight-bar-container">
                         <div class="weight-bar" style="width: ${(weight * 100).toFixed(0)}%; background: ${color};"></div>
                     </div>
-                    <div class="weight-value">${(weight * 100).toFixed(1)}%</div>
+                    <div class="weight-value">${(weight * 100).toFixed(3)}%</div>
                 `;
                 weightsContainer.appendChild(item);
             });
@@ -2264,7 +2264,7 @@
                         <div class="forecast-metric">
                             <div class="forecast-metric-label">Predicted Return</div>
                             <div class="forecast-metric-value ${forecast.predictedReturn >= 0 ? 'positive' : 'negative'}">
-                                ${(forecast.predictedReturn * 100).toFixed(2)}%
+                                ${(forecast.predictedReturn * 100).toFixed(3)}%
                             </div>
                         </div>
                         <div class="forecast-metric">
@@ -2273,11 +2273,11 @@
                         </div>
                         <div class="forecast-metric">
                             <div class="forecast-metric-label">P(Positive Return)</div>
-                            <div class="forecast-metric-value">${(forecast.probPositive * 100).toFixed(1)}%</div>
+                            <div class="forecast-metric-value">${(forecast.probPositive * 100).toFixed(3)}%</div>
                         </div>
                         <div class="forecast-metric">
                             <div class="forecast-metric-label">Avg Forecast Vol</div>
-                            <div class="forecast-metric-value">${(mean(forecast.garch.volForecasts) * 100).toFixed(1)}%</div>
+                            <div class="forecast-metric-value">${(mean(forecast.garch.volForecasts) * 100).toFixed(3)}%</div>
                         </div>
                     </div>
                 `;
@@ -2429,9 +2429,9 @@
                 item.innerHTML = `
                     <div class="slider-header">
                         <span class="slider-ticker">${ticker}</span>
-                        <span class="slider-value" id="slider-val-${ticker}">${(weight * 100).toFixed(1)}%</span>
+                        <span class="slider-value" id="slider-val-${ticker}">${(weight * 100).toFixed(3)}%</span>
                     </div>
-                    <input type="range" class="slider" min="0" max="100" value="${(weight * 100).toFixed(1)}"
+                    <input type="range" class="slider" min="0" max="100" value="${(weight * 100).toFixed(3)}"
                            style="accent-color: ${color};"
                            oninput="updateWeight('${ticker}', this.value)">
                 `;
@@ -2443,14 +2443,14 @@
 
         function updateWeight(ticker, value) {
             state.customWeights[ticker] = parseFloat(value) / 100;
-            document.getElementById(`slider-val-${ticker}`).textContent = `${value}%`;
+            document.getElementById(`slider-val-${ticker}`).textContent = `${parseFloat(value).toFixed(3)}%`;
             updateTotalWeight();
         }
 
         function updateTotalWeight() {
             const total = Object.values(state.customWeights).reduce((a, b) => a + b, 0);
             const totalEl = document.getElementById('totalWeight');
-            totalEl.textContent = `${(total * 100).toFixed(1)}%`;
+            totalEl.textContent = `${(total * 100).toFixed(3)}%`;
             totalEl.style.color = Math.abs(total - 1) < 0.01 ? 'var(--accent-green)' : 'var(--danger)';
         }
 
@@ -2543,14 +2543,14 @@
 
             doc.text('Portfolio Metrics:', 20, 60);
             doc.setFontSize(10);
-            doc.text(`Expected Return: ${(result.return * 100).toFixed(2)}%`, 25, 70);
-            doc.text(`Volatility: ${(result.volatility * 100).toFixed(2)}%`, 25, 78);
+            doc.text(`Expected Return: ${(result.return * 100).toFixed(3)}%`, 25, 70);
+            doc.text(`Volatility: ${(result.volatility * 100).toFixed(3)}%`, 25, 78);
             doc.text(`Sharpe Ratio: ${result.sharpe.toFixed(3)}`, 25, 86);
-            doc.text(`Max Drawdown: ${(result.maxDD * 100).toFixed(2)}%`, 25, 94);
+            doc.text(`Max Drawdown: ${(result.maxDD * 100).toFixed(3)}%`, 25, 94);
 
             doc.text('Weights:', 20, 110);
             state.selectedStocks.forEach((ticker, i) => {
-                doc.text(`${ticker}: ${(result.weights[i] * 100).toFixed(2)}%`, 25, 120 + i * 8);
+                doc.text(`${ticker}: ${(result.weights[i] * 100).toFixed(3)}%`, 25, 120 + i * 8);
             });
 
             doc.save('idx-portfolio.pdf');
@@ -2562,7 +2562,7 @@
 
             let csv = 'Ticker,Weight\n';
             state.selectedStocks.forEach((ticker, i) => {
-                csv += `${ticker},${(result.weights[i] * 100).toFixed(4)}\n`;
+                csv += `${ticker},${(result.weights[i] * 100).toFixed(3)}\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv' });
