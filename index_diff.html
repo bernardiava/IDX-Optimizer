@@ -641,6 +641,129 @@
         .regime-high { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
         .regime-crisis { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
 
+        /* Portfolio Forecast Card */
+        .portfolio-forecast-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(16, 185, 129, 0.1));
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--accent-blue);
+        }
+
+        .portfolio-forecast-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .portfolio-forecast-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .portfolio-signal-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .portfolio-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .portfolio-metric-item {
+            background: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .portfolio-metric-label {
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .portfolio-metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .portfolio-metric-value.positive { color: var(--accent-green); }
+        .portfolio-metric-value.negative { color: var(--danger); }
+        .portfolio-metric-value.neutral { color: var(--accent-amber); }
+
+        .portfolio-stocks-list {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .portfolio-stocks-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+
+        .portfolio-stock-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 0;
+            font-size: 0.8125rem;
+        }
+
+        .portfolio-stock-ticker {
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .portfolio-stock-weight {
+            color: var(--text-secondary);
+        }
+
+        .portfolio-stock-signal {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.6875rem;
+            font-weight: 600;
+        }
+
+        .workaround-note {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background: rgba(245, 158, 11, 0.1);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-amber);
+        }
+
+        .workaround-note-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-amber);
+            margin-bottom: 0.25rem;
+        }
+
+        .workaround-note-text {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
         /* Commentary */
         .commentary-section {
             background: var(--bg-tertiary);
@@ -1201,6 +1324,11 @@
                 <div class="card">
                     <div class="card-header">
                         <div class="card-title">Stock Forecasts</div>
+                    </div>
+
+                    <!-- Portfolio Forecast Summary Card -->
+                    <div id="portfolioForecastCard" class="portfolio-forecast-card">
+                        <!-- Populated by JS -->
                     </div>
 
                     <div class="forecast-controls">
@@ -2233,10 +2361,161 @@
             displayForecasts();
         }
 
+        // Calculate portfolio forecast (weighted average approach)
+        function calculatePortfolioForecast() {
+            const result = state.optimizationResults[state.currentStrategy];
+            if (!result || !result.weights) return null;
+
+            let portfolioReturn = 0;
+            let portfolioVolatility = 0;
+            let portfolioProbPositive = 0;
+            let totalWeight = 0;
+            const stockForecasts = [];
+
+            state.selectedStocks.forEach((ticker, i) => {
+                const weight = result.weights[i] || 0;
+                if (weight > 0) {
+                    const prices = getClosePrices(STOCK_DATA[ticker]);
+                    const forecast = ensembleForecast(prices, state.forecastHorizon);
+                    
+                    portfolioReturn += weight * forecast.predictedReturn;
+                    portfolioVolatility += weight * mean(forecast.garch.volForecasts);
+                    portfolioProbPositive += weight * forecast.probPositive;
+                    totalWeight += weight;
+                    
+                    stockForecasts.push({
+                        ticker,
+                        weight,
+                        signal: forecast.signal,
+                        predictedReturn: forecast.predictedReturn
+                    });
+                }
+            });
+
+            // Normalize by total weight
+            if (totalWeight > 0) {
+                portfolioReturn /= totalWeight;
+                portfolioVolatility /= totalWeight;
+                portfolioProbPositive /= totalWeight;
+            }
+
+            // Determine portfolio signal
+            let portfolioSignal = 'neutral';
+            if (portfolioReturn > 0.02) portfolioSignal = 'bullish';
+            if (portfolioReturn < -0.02) portfolioSignal = 'bearish';
+
+            // Calculate confidence level based on volatility and time horizon
+            const avgDailyVol = portfolioVolatility / Math.sqrt(252);
+            const confidenceLevel = Math.min(95, Math.max(50, 100 - (avgDailyVol * Math.sqrt(state.forecastHorizon) * 100)));
+
+            return {
+                expectedReturn: portfolioReturn,
+                expectedVolatility: portfolioVolatility,
+                probPositive: portfolioProbPositive,
+                confidenceLevel,
+                signal: portfolioSignal,
+                stocks: stockForecasts.sort((a, b) => b.weight - a.weight)
+            };
+        }
+
+        // Display portfolio forecast card
+        function displayPortfolioForecast() {
+            const container = document.getElementById('portfolioForecastCard');
+            const portfolioForecast = calculatePortfolioForecast();
+
+            if (!portfolioForecast) {
+                container.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">Run optimization first to see portfolio forecast</div>';
+                return;
+            }
+
+            const signalClass = portfolioForecast.signal === 'bullish' ? 'signal-bullish' : portfolioForecast.signal === 'bearish' ? 'signal-bearish' : 'signal-neutral';
+            const signalIcon = portfolioForecast.signal === 'bullish' ? '🟢' : portfolioForecast.signal === 'bearish' ? '🔴' : '🟡';
+            const signalText = portfolioForecast.signal.charAt(0).toUpperCase() + portfolioForecast.signal.slice(1);
+            
+            const returnClass = portfolioForecast.expectedReturn >= 0 ? 'positive' : 'negative';
+            const horizonLabel = state.forecastHorizon <= 5 ? '1 Week' : state.forecastHorizon <= 22 ? '1 Month' : state.forecastHorizon <= 66 ? '3 Months' : '1 Year';
+
+            let stocksHtml = '';
+            portfolioForecast.stocks.forEach(stock => {
+                const stockSignalClass = stock.signal === 'bullish' ? 'signal-bullish' : stock.signal === 'bearish' ? 'signal-bearish' : 'signal-neutral';
+                const stockSignalIcon = stock.signal === 'bullish' ? '🟢' : stock.signal === 'bearish' ? '🔴' : '🟡';
+                
+                stocksHtml += `
+                    <div class="portfolio-stock-item">
+                        <span class="portfolio-stock-ticker">${stock.ticker}</span>
+                        <span class="portfolio-stock-weight">${(stock.weight * 100).toFixed(2)}%</span>
+                        <span class="portfolio-stock-signal ${stockSignalClass}">${stockSignalIcon} ${stock.signal}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = `
+                <div class="portfolio-forecast-header">
+                    <div class="portfolio-forecast-title">
+                        📊 Portfolio Forecast (${horizonLabel})
+                    </div>
+                    <div class="portfolio-signal-badge ${signalClass}">
+                        ${signalIcon} ${signalText}
+                    </div>
+                </div>
+                
+                <div class="portfolio-metrics-grid">
+                    <div class="portfolio-metric-item">
+                        <div class="portfolio-metric-label">Expected Return</div>
+                        <div class="portfolio-metric-value ${returnClass}">
+                            ${(portfolioForecast.expectedReturn * 100).toFixed(3)}%
+                        </div>
+                    </div>
+                    <div class="portfolio-metric-item">
+                        <div class="portfolio-metric-label">Expected Volatility</div>
+                        <div class="portfolio-metric-value neutral">
+                            ${(portfolioForecast.expectedVolatility * 100).toFixed(3)}%
+                        </div>
+                    </div>
+                    <div class="portfolio-metric-item">
+                        <div class="portfolio-metric-label">P(Positive Return)</div>
+                        <div class="portfolio-metric-value positive">
+                            ${(portfolioForecast.probPositive * 100).toFixed(2)}%
+                        </div>
+                    </div>
+                    <div class="portfolio-metric-item">
+                        <div class="portfolio-metric-label">Confidence Level</div>
+                        <div class="portfolio-metric-value ${portfolioForecast.confidenceLevel >= 70 ? 'positive' : portfolioForecast.confidenceLevel >= 50 ? 'neutral' : 'negative'}">
+                            ${portfolioForecast.confidenceLevel.toFixed(1)}%
+                        </div>
+                    </div>
+                </div>
+
+                <div class="portfolio-stocks-list">
+                    <div class="portfolio-stocks-title">Portfolio Composition & Signals</div>
+                    ${stocksHtml}
+                </div>
+
+                <div style="margin-top: 1rem;">
+                    <div id="portfolio-forecast-chart" style="height: 250px;"></div>
+                </div>
+
+                <div class="workaround-note">
+                    <div class="workaround-note-title">ℹ️ Methodology Note</div>
+                    <div class="workaround-note-text">
+                        Portfolio forecast is calculated as a weighted average of individual stock forecasts using optimized portfolio weights. 
+                        Formula: Portfolio Return = Σ(weight × return), Portfolio Volatility = Σ(weight × volatility). 
+                        Signal thresholds: >2% bullish, <-2% bearish. True multivariate forecasting with correlation modeling is planned for future enhancement.
+                    </div>
+                </div>
+            `;
+
+            // Draw the portfolio forecast chart
+            drawPortfolioForecastChart();
+        }
+
         // Display forecasts
         function displayForecasts() {
             const container = document.getElementById('forecastsContainer');
             container.innerHTML = '';
+
+            // Display portfolio forecast first
+            displayPortfolioForecast();
 
             state.selectedStocks.forEach(ticker => {
                 const prices = getClosePrices(STOCK_DATA[ticker]);
@@ -2352,6 +2631,133 @@
             };
 
             Plotly.newPlot(`forecast-chart-${ticker}`, traces, layout, { displayModeBar: false });
+        }
+
+        // Draw portfolio forecast chart (weighted average of all stocks)
+        function drawPortfolioForecastChart() {
+            const result = state.optimizationResults[state.currentStrategy];
+            if (!result || !result.weights) return;
+
+            const allDates = [];
+            const histPortfolioValues = [];
+            const forecastPortfolioValues = [];
+            const ci95Upper = [];
+            const ci95Lower = [];
+
+            // Calculate historical portfolio values using optimized weights
+            let minLen = Infinity;
+            const priceData = {};
+            
+            state.selectedStocks.forEach((ticker, i) => {
+                const weight = result.weights[i] || 0;
+                if (weight > 0) {
+                    const prices = getClosePrices(STOCK_DATA[ticker]);
+                    priceData[ticker] = { prices, weight };
+                    minLen = Math.min(minLen, prices.length);
+                }
+            });
+
+            // Get last N days for historical view
+            const historyDays = 30;
+            const dates = STOCK_DATA[state.selectedStocks[0]].slice(-historyDays).map(d => d.date);
+            
+            // Calculate historical weighted portfolio value (normalized to 100)
+            const histValues = [];
+            for (let d = 0; d < historyDays; d++) {
+                let portfolioValue = 0;
+                state.selectedStocks.forEach((ticker, i) => {
+                    const weight = result.weights[i] || 0;
+                    if (weight > 0 && priceData[ticker]) {
+                        const priceIdx = STOCK_DATA[ticker].length - historyDays + d;
+                        if (priceIdx >= 0 && priceIdx < STOCK_DATA[ticker].length) {
+                            const price = STOCK_DATA[ticker][priceIdx].close;
+                            const basePrice = STOCK_DATA[ticker][STOCK_DATA[ticker].length - historyDays].close;
+                            const normalizedReturn = (price / basePrice) - 1;
+                            portfolioValue += weight * (1 + normalizedReturn);
+                        }
+                    }
+                });
+                histValues.push(100 * portfolioValue);
+            }
+
+            // Calculate forecast
+            const portfolioForecast = calculatePortfolioForecast();
+            if (!portfolioForecast) return;
+
+            // Generate forecast trajectory
+            const lastHistValue = histValues[histValues.length - 1];
+            const forecastDates = [];
+            const forecastValues = [lastHistValue];
+            const upperValues = [lastHistValue];
+            const lowerValues = [lastHistValue];
+            
+            const lastDate = new Date(STOCK_DATA[state.selectedStocks[0]][STOCK_DATA[state.selectedStocks[0]].length - 1].date);
+            for (let i = 1; i <= state.forecastHorizon; i++) {
+                const d = new Date(lastDate);
+                d.setDate(d.getDate() + i);
+                if (d.getDay() !== 0 && d.getDay() !== 6) {
+                    forecastDates.push(d.toISOString().split('T')[0]);
+                    
+                    // Linear growth based on expected return
+                    const cumulativeReturn = portfolioForecast.expectedReturn * (i / state.forecastHorizon);
+                    const volAdjustment = portfolioForecast.expectedVolatility * Math.sqrt(i / 252);
+                    
+                    forecastValues.push(lastHistValue * (1 + cumulativeReturn));
+                    upperValues.push(lastHistValue * (1 + cumulativeReturn + 1.96 * volAdjustment));
+                    lowerValues.push(lastHistValue * (1 + cumulativeReturn - 1.96 * volAdjustment));
+                }
+            }
+
+            const allDates = [...dates, ...forecastDates];
+            const allHist = [...histValues, ...Array(forecastDates.length).fill(null)];
+            const allForecast = [...Array(historyDays).fill(null), ...forecastValues.slice(1)];
+            const allUpper = [...Array(historyDays).fill(null), ...upperValues.slice(1)];
+            const allLower = [...Array(historyDays).fill(null), ...lowerValues.slice(1)];
+
+            const traces = [
+                {
+                    x: allDates,
+                    y: allHist,
+                    mode: 'lines',
+                    name: 'Historical Portfolio',
+                    line: { color: '#94a3b8', width: 2 }
+                },
+                {
+                    x: allDates,
+                    y: allForecast,
+                    mode: 'lines',
+                    name: 'Portfolio Forecast',
+                    line: { color: '#3b82f6', width: 3 }
+                },
+                {
+                    x: allDates,
+                    y: allUpper,
+                    mode: 'lines',
+                    name: '95% CI Upper',
+                    line: { color: '#10b981', width: 1, dash: 'dot' }
+                },
+                {
+                    x: allDates,
+                    y: allLower,
+                    mode: 'lines',
+                    name: '95% CI Lower',
+                    line: { color: '#10b981', width: 1, dash: 'dot' },
+                    fill: 'tonexty'
+                }
+            ];
+
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#f1f5f9', family: 'Inter', size: 10 },
+                xaxis: { gridcolor: '#374151', showticklabels: false },
+                yaxis: { gridcolor: '#374151', title: 'Portfolio Value (Normalized)' },
+                margin: { t: 20, b: 20, l: 50, r: 20 },
+                showlegend: false,
+                height: 250
+            };
+
+            Plotly.newPlot('portfolio-forecast-chart', traces, layout, { displayModeBar: false });
         }
 
         // Display commentary
